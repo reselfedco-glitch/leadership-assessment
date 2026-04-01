@@ -601,148 +601,352 @@ function ActionsTab({ name, blockScores, onRestart, leadershipScore }: {
       
       const pdf = new jsPDF('p', 'mm', 'a4')
       const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
       const margin = 20
       const contentWidth = pageWidth - (margin * 2)
       let yPos = margin
 
       const addNewPageIfNeeded = (requiredSpace: number) => {
-        if (yPos + requiredSpace > pdf.internal.pageSize.getHeight() - margin) {
+        if (yPos + requiredSpace > pageHeight - margin) {
           pdf.addPage()
           yPos = margin
         }
       }
 
-      // Header
-      pdf.setFontSize(10)
+      const addWrappedText = (text: string, x: number, y: number, maxWidth: number, fontSize: number, r: number, g: number, b: number, style: string = 'normal') => {
+        pdf.setFontSize(fontSize)
+        pdf.setTextColor(r, g, b)
+        if (style === 'bold') pdf.setFont('helvetica', 'bold')
+        else if (style === 'italic') pdf.setFont('helvetica', 'italic')
+        else pdf.setFont('helvetica', 'normal')
+        const lines = pdf.splitTextToSize(text, maxWidth)
+        const lineHeight = fontSize * 0.45
+        lines.forEach((line: string) => {
+          addNewPageIfNeeded(lineHeight + 2)
+          pdf.text(line, x, yPos)
+          yPos += lineHeight
+        })
+        pdf.setFont('helvetica', 'normal')
+        return lines.length
+      }
+
+      const addSectionHeader = (text: string) => {
+        addNewPageIfNeeded(15)
+        yPos += 8
+        pdf.setFontSize(16)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setTextColor(60, 60, 60)
+        pdf.text(text, margin, yPos)
+        pdf.setFont('helvetica', 'normal')
+        yPos += 3
+        // underline
+        pdf.setDrawColor(90, 50, 150)
+        pdf.setLineWidth(0.5)
+        pdf.line(margin, yPos, margin + 40, yPos)
+        yPos += 8
+      }
+
+      const addSubHeader = (text: string) => {
+        addNewPageIfNeeded(12)
+        yPos += 4
+        pdf.setFontSize(12)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setTextColor(80, 80, 80)
+        pdf.text(text, margin, yPos)
+        pdf.setFont('helvetica', 'normal')
+        yPos += 7
+      }
+
+      const addLabel = (text: string, color: [number, number, number] = [120, 120, 120]) => {
+        addNewPageIfNeeded(8)
+        pdf.setFontSize(8)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setTextColor(...color)
+        pdf.text(text.toUpperCase(), margin + 5, yPos)
+        pdf.setFont('helvetica', 'normal')
+        yPos += 5
+      }
+
+      // ==========================================
+      // PAGE 1: HEADER & OVERVIEW
+      // ==========================================
+      pdf.setFontSize(9)
       pdf.setTextColor(128, 128, 128)
       pdf.text('RESELFED', margin, yPos)
       pdf.text('Leadership Identity Assessment', pageWidth - margin, yPos, { align: 'right' })
       yPos += 15
 
-      // Title
       pdf.setFontSize(24)
+      pdf.setFont('helvetica', 'bold')
       pdf.setTextColor(60, 60, 60)
-      pdf.text(`${name}'s Leadership Identity Results`, margin, yPos)
-      yPos += 10
+      pdf.text(`${name}'s Leadership Identity`, margin, yPos)
+      pdf.setFont('helvetica', 'normal')
+      yPos += 8
 
       pdf.setFontSize(11)
       pdf.setTextColor(100, 100, 100)
-      pdf.text('Based on your 25 responses', margin, yPos)
+      pdf.text('Full Assessment Results', margin, yPos)
       yPos += 15
 
-      // Score Section
-      addNewPageIfNeeded(40)
+      // Score Box
       pdf.setFillColor(245, 245, 250)
-      pdf.roundedRect(margin, yPos, contentWidth, 35, 3, 3, 'F')
+      pdf.roundedRect(margin, yPos, contentWidth, 40, 3, 3, 'F')
+      
+      const scoreInfo = leadershipScore >= 80 ? { label: "Emerging Leader", desc: `${name}, you already think and operate like a leader.` }
+        : leadershipScore >= 60 ? { label: "Growing Influence", desc: `${name}, you show leadership traits but certain blocks hold you back.` }
+        : leadershipScore >= 40 ? { label: "Hidden Influence", desc: `${name}, several blocks are limiting your leadership identity.` }
+        : { label: "Foundational Stage", desc: `${name}, significant blocks prevent you from seeing yourself as a leader.` }
+
+      pdf.setFontSize(32)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setTextColor(90, 50, 150)
+      pdf.text(`${leadershipScore}`, margin + 10, yPos + 22)
+      pdf.setFontSize(12)
+      pdf.setTextColor(130, 130, 130)
+      pdf.text('/ 100', margin + 38, yPos + 22)
       
       pdf.setFontSize(14)
+      pdf.setFont('helvetica', 'bold')
       pdf.setTextColor(60, 60, 60)
-      pdf.text('Leadership Identity Score', margin + 10, yPos + 12)
-      
-      pdf.setFontSize(32)
-      pdf.setTextColor(90, 50, 150)
-      pdf.text(`${leadershipScore}`, margin + 10, yPos + 28)
-      
-      pdf.setFontSize(12)
+      pdf.text(scoreInfo.label, margin + 60, yPos + 15)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(9)
       pdf.setTextColor(100, 100, 100)
-      pdf.text('/ 100', margin + 35, yPos + 28)
-      yPos += 45
+      const descLines = pdf.splitTextToSize(scoreInfo.desc, contentWidth - 65)
+      pdf.text(descLines, margin + 60, yPos + 22)
+      yPos += 50
 
-      // Block Scores
-      addNewPageIfNeeded(20)
-      pdf.setFontSize(16)
-      pdf.setTextColor(60, 60, 60)
-      pdf.text('Your Leadership Blocks', margin, yPos)
-      yPos += 10
-
-      blockScores.forEach((bs) => {
-        addNewPageIfNeeded(25)
-        const isHighBlock = bs.percentage >= 50
-        
-        pdf.setFillColor(isHighBlock ? 255 : 245, isHighBlock ? 245 : 250, isHighBlock ? 245 : 255)
-        pdf.roundedRect(margin, yPos, contentWidth, 20, 2, 2, 'F')
-        
-        pdf.setFontSize(11)
+      // Quick Stats
+      const stats = [
+        { label: 'Active Blocks', value: blockScores.filter(b => b.percentage >= 50).length.toString() },
+        { label: 'Strengths', value: blockScores.filter(b => b.percentage < 30).length.toString() },
+        { label: 'Top Block', value: `${blockScores.filter(b => b.percentage >= 50)[0]?.percentage || 0}%` },
+        { label: 'Areas Analyzed', value: '5' },
+      ]
+      const statWidth = contentWidth / 4
+      stats.forEach((stat, i) => {
+        const x = margin + i * statWidth
+        pdf.setFillColor(250, 250, 255)
+        pdf.roundedRect(x + 2, yPos, statWidth - 4, 22, 2, 2, 'F')
+        pdf.setFontSize(16)
+        pdf.setFont('helvetica', 'bold')
         pdf.setTextColor(60, 60, 60)
-        pdf.text(bs.block.name, margin + 5, yPos + 8)
+        pdf.text(stat.value, x + statWidth / 2, yPos + 10, { align: 'center' })
+        pdf.setFontSize(7)
+        pdf.setFont('helvetica', 'normal')
+        pdf.setTextColor(120, 120, 120)
+        pdf.text(stat.label, x + statWidth / 2, yPos + 17, { align: 'center' })
+      })
+      yPos += 30
+
+      // Block Summary with bars
+      addSectionHeader('Block Summary')
+      blockScores.forEach((bs) => {
+        addNewPageIfNeeded(18)
+        const isHigh = bs.percentage >= 50
         
         pdf.setFontSize(10)
-        pdf.setTextColor(100, 100, 100)
-        const beliefText = `"${bs.block.belief}"`
-        const splitBelief = pdf.splitTextToSize(beliefText, contentWidth - 50)
-        pdf.text(splitBelief[0], margin + 5, yPos + 15)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setTextColor(60, 60, 60)
+        pdf.text(bs.block.name, margin, yPos)
+        pdf.setTextColor(isHigh ? 180 : 90, isHigh ? 80 : 130, isHigh ? 80 : 90)
+        pdf.text(`${bs.percentage}%`, pageWidth - margin, yPos, { align: 'right' })
+        pdf.setFont('helvetica', 'normal')
+        yPos += 4
         
-        pdf.setFontSize(14)
-        pdf.setTextColor(isHighBlock ? 180 : 90, isHighBlock ? 80 : 150, isHighBlock ? 80 : 90)
-        pdf.text(`${bs.percentage}%`, pageWidth - margin - 15, yPos + 12)
-        
-        yPos += 25
+        // Progress bar
+        pdf.setFillColor(230, 230, 240)
+        pdf.roundedRect(margin, yPos, contentWidth, 3, 1, 1, 'F')
+        pdf.setFillColor(isHigh ? 220 : 90, isHigh ? 100 : 130, isHigh ? 100 : 180)
+        pdf.roundedRect(margin, yPos, contentWidth * (bs.percentage / 100), 3, 1, 1, 'F')
+        yPos += 9
       })
 
-      // Coaching Focus
-      addNewPageIfNeeded(60)
-      yPos += 10
-      pdf.setFontSize(16)
-      pdf.setTextColor(60, 60, 60)
-      pdf.text('Coaching Focus', margin, yPos)
-      yPos += 10
-
-      pdf.setFontSize(10)
-      pdf.setTextColor(80, 80, 80)
-      const focusText = coachingSummary.coachFocus
-      const splitFocus = pdf.splitTextToSize(focusText, contentWidth)
-      pdf.text(splitFocus, margin, yPos)
-      yPos += splitFocus.length * 5 + 10
-
-      // Top Blocks Detail
+      // Primary Identity (if high blocks exist)
       const topBlocks = blockScores.filter(b => b.percentage >= 50)
-      if (topBlocks.length > 0) {
+      if (topBlocks[0]) {
         addNewPageIfNeeded(30)
-        pdf.setFontSize(16)
+        yPos += 5
+        pdf.setFillColor(255, 245, 245)
+        pdf.roundedRect(margin, yPos, contentWidth, 25, 3, 3, 'F')
+        pdf.setFontSize(8)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setTextColor(180, 80, 80)
+        pdf.text('PRIMARY IDENTITY', margin + 8, yPos + 8)
+        pdf.setFontSize(12)
         pdf.setTextColor(60, 60, 60)
-        pdf.text('Areas to Address', margin, yPos)
-        yPos += 10
-
-        topBlocks.forEach((bs, index) => {
-          addNewPageIfNeeded(50)
-          
-          pdf.setFontSize(12)
-          pdf.setTextColor(60, 60, 60)
-          pdf.text(`${index + 1}. ${bs.block.name}`, margin, yPos)
-          yPos += 7
-
-          pdf.setFontSize(10)
-          pdf.setTextColor(100, 100, 100)
-          pdf.text('Belief to Challenge:', margin + 5, yPos)
-          yPos += 5
-          
-          pdf.setFontSize(9)
-          const beliefChallenge = `"${bs.block.coaching.beliefToChallenge}"`
-          const splitChallenge = pdf.splitTextToSize(beliefChallenge, contentWidth - 10)
-          pdf.text(splitChallenge, margin + 5, yPos)
-          yPos += splitChallenge.length * 4 + 5
-
-          pdf.setFontSize(10)
-          pdf.setTextColor(100, 100, 100)
-          pdf.text('New Belief to Adopt:', margin + 5, yPos)
-          yPos += 5
-          
-          pdf.setFontSize(9)
-          pdf.setTextColor(90, 50, 150)
-          const newBelief = `"${bs.block.coaching.newBeliefToAdopt}"`
-          const splitNew = pdf.splitTextToSize(newBelief, contentWidth - 10)
-          pdf.text(splitNew, margin + 5, yPos)
-          yPos += splitNew.length * 4 + 10
-        })
+        pdf.text(topBlocks[0].block.identity.label, margin + 8, yPos + 16)
+        pdf.setFont('helvetica', 'normal')
+        yPos += 30
+        addWrappedText(topBlocks[0].block.identity.description, margin, yPos, contentWidth, 9, 100, 100, 100)
+        yPos += 5
       }
 
-      // Footer
+      // ==========================================
+      // DETAILED BLOCKS
+      // ==========================================
+      addSectionHeader('Your Leadership Beliefs — Detailed')
+
+      blockScores.forEach((bs) => {
+        const isHigh = bs.percentage >= 50
+        
+        addNewPageIfNeeded(60)
+        // Block header
+        pdf.setFillColor(isHigh ? 255 : 245, isHigh ? 248 : 250, isHigh ? 248 : 255)
+        pdf.roundedRect(margin, yPos, contentWidth, 12, 2, 2, 'F')
+        pdf.setFontSize(11)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setTextColor(60, 60, 60)
+        pdf.text(bs.block.name, margin + 5, yPos + 8)
+        pdf.setTextColor(isHigh ? 180 : 90, isHigh ? 80 : 130, isHigh ? 80 : 90)
+        pdf.text(`${bs.percentage}%`, pageWidth - margin - 5, yPos + 8, { align: 'right' })
+        pdf.setFont('helvetica', 'normal')
+        yPos += 17
+
+        // Belief
+        addLabel(isHigh ? 'CURRENT BELIEF' : 'YOUR BELIEF')
+        addWrappedText(`"${isHigh ? bs.block.belief : bs.block.strength.belief}"`, margin + 5, yPos, contentWidth - 10, 9, 80, 80, 80, 'italic')
+        yPos += 4
+
+        if (isHigh) {
+          // Identity
+          addLabel('IDENTITY YOU HOLD', [180, 80, 80])
+          addWrappedText(bs.block.identity.label, margin + 5, yPos, contentWidth - 10, 10, 60, 60, 60, 'bold')
+          yPos += 2
+          addWrappedText(bs.block.identity.description, margin + 5, yPos, contentWidth - 10, 9, 100, 100, 100)
+          yPos += 3
+
+          // Impact
+          addLabel('IMPACT')
+          addWrappedText(bs.block.identity.impact, margin + 5, yPos, contentWidth - 10, 9, 100, 100, 100)
+          yPos += 3
+
+          // Perception Details
+          addLabel('HOW COLLEAGUES SEE YOU')
+          addWrappedText(bs.block.perceptionDetails.howColleaguesSeeYou, margin + 5, yPos, contentWidth - 10, 9, 100, 100, 100)
+          yPos += 3
+
+          addLabel('HOW LEADERSHIP SEES YOU')
+          addWrappedText(bs.block.perceptionDetails.howLeadershipSeesYou, margin + 5, yPos, contentWidth - 10, 9, 100, 100, 100)
+          yPos += 3
+
+          addLabel('CAREER IMPACT')
+          addWrappedText(bs.block.perceptionDetails.careerImpact, margin + 5, yPos, contentWidth - 10, 9, 100, 100, 100)
+          yPos += 3
+
+          addLabel('WHAT YOU MISS')
+          addWrappedText(bs.block.perceptionDetails.whatYouMiss, margin + 5, yPos, contentWidth - 10, 9, 100, 100, 100)
+          yPos += 3
+
+          // Belief to Challenge
+          addLabel('BELIEF TO CHALLENGE', [180, 80, 80])
+          addWrappedText(`"${bs.block.coaching.beliefToChallenge}"`, margin + 5, yPos, contentWidth - 10, 9, 180, 80, 80, 'italic')
+          yPos += 3
+
+          // Discussion Topics
+          addLabel('TOPICS FOR COACHING SESSIONS')
+          bs.block.coaching.discussWithCoach.forEach((topic) => {
+            addNewPageIfNeeded(8)
+            pdf.setFontSize(9)
+            pdf.setTextColor(100, 100, 100)
+            pdf.text('▸', margin + 5, yPos)
+            const topicLines = pdf.splitTextToSize(topic, contentWidth - 18)
+            pdf.text(topicLines, margin + 12, yPos)
+            yPos += topicLines.length * 4 + 2
+          })
+          yPos += 2
+
+          // New Belief
+          addLabel('NEW BELIEF TO ADOPT', [90, 50, 150])
+          addWrappedText(`"${bs.block.coaching.newBeliefToAdopt}"`, margin + 5, yPos, contentWidth - 10, 9, 90, 50, 150, 'bold')
+          yPos += 3
+
+          // Actions
+          addLabel('ACTIONS TO PRACTICE')
+          bs.block.changeActions.forEach((action) => {
+            addNewPageIfNeeded(8)
+            pdf.setFontSize(9)
+            pdf.setTextColor(100, 100, 100)
+            pdf.text('✓', margin + 5, yPos)
+            const actionLines = pdf.splitTextToSize(action, contentWidth - 18)
+            pdf.text(actionLines, margin + 12, yPos)
+            yPos += actionLines.length * 4 + 2
+          })
+
+        } else {
+          // Strength details
+          addLabel('WHY THIS SERVES YOU', [90, 130, 90])
+          addWrappedText(bs.block.strength.description, margin + 5, yPos, contentWidth - 10, 9, 100, 100, 100)
+          yPos += 3
+
+          addLabel('HOW COLLEAGUES SEE YOU')
+          addWrappedText(bs.block.strength.howColleaguesSeeYou, margin + 5, yPos, contentWidth - 10, 9, 100, 100, 100)
+          yPos += 3
+
+          addLabel('HOW LEADERSHIP SEES YOU')
+          addWrappedText(bs.block.strength.howLeadershipSeesYou, margin + 5, yPos, contentWidth - 10, 9, 100, 100, 100)
+          yPos += 3
+
+          addLabel('CAREER BENEFIT')
+          addWrappedText(bs.block.strength.careerBenefit, margin + 5, yPos, contentWidth - 10, 9, 100, 100, 100)
+          yPos += 3
+        }
+
+        // Separator
+        yPos += 3
+        pdf.setDrawColor(220, 220, 220)
+        pdf.setLineWidth(0.3)
+        pdf.line(margin, yPos, pageWidth - margin, yPos)
+        yPos += 5
+      })
+
+      // ==========================================
+      // COACHING FOCUS SUMMARY
+      // ==========================================
+      addSectionHeader('Coaching Focus')
+
+      addLabel('WHERE YOU ARE NOW')
+      addWrappedText(coachingSummary.currentState, margin + 5, yPos, contentWidth - 10, 9, 80, 80, 80)
+      yPos += 5
+
+      addLabel('COACHING FOCUS', [90, 50, 150])
+      addWrappedText(coachingSummary.coachFocus, margin + 5, yPos, contentWidth - 10, 9, 80, 80, 80)
+      yPos += 5
+
+      addLabel('WHERE YOU\'LL BE AFTER')
+      addWrappedText(coachingSummary.futureState, margin + 5, yPos, contentWidth - 10, 9, 80, 80, 80)
+      yPos += 5
+
+      // Personalized Quote
+      addNewPageIfNeeded(25)
+      yPos += 5
+      pdf.setFillColor(248, 248, 252)
+      const quoteText = getPersonalizedQuote()
+      const quoteLines = pdf.splitTextToSize(quoteText, contentWidth - 20)
+      const quoteHeight = quoteLines.length * 4.5 + 14
+      pdf.roundedRect(margin, yPos, contentWidth, quoteHeight, 3, 3, 'F')
+      pdf.setFontSize(9)
+      pdf.setFont('helvetica', 'italic')
+      pdf.setTextColor(80, 80, 80)
+      pdf.text(quoteLines, margin + 10, yPos + 10)
+      pdf.setFont('helvetica', 'normal')
+      yPos += quoteHeight + 8
+
+      // ==========================================
+      // FOOTER
+      // ==========================================
       addNewPageIfNeeded(20)
       yPos += 10
-      pdf.setFontSize(9)
+      pdf.setDrawColor(200, 200, 200)
+      pdf.line(margin, yPos, pageWidth - margin, yPos)
+      yPos += 8
+      pdf.setFontSize(8)
       pdf.setTextColor(150, 150, 150)
       pdf.text('CONFIDENTIAL', pageWidth / 2, yPos, { align: 'center' })
-      pdf.text('Reselfed Leadership Identity Assessment', pageWidth / 2, yPos + 5, { align: 'center' })
+      yPos += 4
+      pdf.text('Reselfed Leadership Identity Assessment', pageWidth / 2, yPos, { align: 'center' })
+      yPos += 4
+      pdf.text(`Generated for ${name} • ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, pageWidth / 2, yPos, { align: 'center' })
       
       pdf.save(`${name}-leadership-assessment.pdf`)
     } catch (error) {
